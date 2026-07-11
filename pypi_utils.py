@@ -6,6 +6,15 @@ import logging
 logger = logging.getLogger(__name__)
 
 def clean_description(desc):
+    """
+    Normalize a package description by removing surrounding whitespace.
+    
+    Parameters:
+    	desc: The description text to normalize.
+    
+    Returns:
+    	str: The stripped description, or an empty string when no description is provided.
+    """
     if not desc:
         return ""
     # strip HTML/Markdown if needed or just return stripped
@@ -13,8 +22,14 @@ def clean_description(desc):
 
 def parse_github_repo(project_urls, home_page=None):
     """
-    Look for GitHub repository url in project_urls dict or home_page.
-    Returns (owner, repo) if found, otherwise None.
+    Extract a normalized GitHub repository owner and name from project URLs.
+    
+    Parameters:
+        project_urls (dict): Mapping whose values may contain GitHub repository URLs.
+        home_page (str, optional): Additional URL to inspect.
+    
+    Returns:
+        tuple or None: A `(owner, repository)` pair, or `None` if no GitHub repository URL is found.
     """
     urls = []
     if project_urls and isinstance(project_urls, dict):
@@ -40,8 +55,14 @@ def parse_github_repo(project_urls, home_page=None):
 
 def fetch_github_stars(owner, repo):
     """
-    Fetch repository stargazers_count using GitHub REST API.
-    Fails gracefully returning 0 stars.
+    Retrieve the number of stars for a GitHub repository.
+    
+    Parameters:
+    	owner (str): GitHub repository owner.
+    	repo (str): GitHub repository name.
+    
+    Returns:
+    	int: The repository's star count, or 0 if the request fails or the repository data does not include a star count.
     """
     url = f"https://api.github.com/repos/{owner}/{repo}"
     headers = {
@@ -58,9 +79,13 @@ def fetch_github_stars(owner, repo):
     return 0
 
 def fetch_pypi_downloads(package_name):
-    """
-    Fetch last month downloads using PyPI Stats API.
-    Fails gracefully returning 0 downloads.
+    """Fetch the number of downloads for a package during the previous month.
+    
+    Parameters:
+        package_name: The PyPI package name.
+    
+    Returns:
+        The package's previous-month download count, or 0 if the request fails or provides no count.
     """
     url = f"https://pypistats.org/api/packages/{package_name}/recent"
     try:
@@ -76,8 +101,13 @@ def fetch_pypi_downloads(package_name):
 
 def fetch_pypi_metadata(package_name):
     """
-    Fetches full metadata of a package from PyPI JSON API.
-    Returns a dict with processed fields, or None if not found/error.
+    Retrieve metadata for a package from the PyPI JSON API.
+    
+    Parameters:
+        package_name (str): The PyPI package name.
+    
+    Returns:
+        dict: The package metadata, or None if the request fails or the package is unavailable.
     """
     url = f"https://pypi.org/pypi/{package_name}/json"
     try:
@@ -90,8 +120,13 @@ def fetch_pypi_metadata(package_name):
 
 def is_low_quality(info):
     """
-    Filter out packages that are likely low quality or spam.
-    Returns True if low quality, False otherwise.
+    Assess whether package metadata appears likely to represent a low-quality or spam-like package.
+    
+    Parameters:
+        info (dict): Package metadata containing the name, description, summary, and version.
+    
+    Returns:
+        bool: `True` if the metadata is likely low quality, `False` otherwise.
     """
     if not info:
         return True
@@ -144,8 +179,14 @@ def is_low_quality(info):
 
 def process_and_get_package_details(package_name):
     """
-    Fetches, filters and extracts details for a package.
-    Returns a dict of fields to save, or None if it fails or gets filtered out.
+    Fetch, filter, and assemble selected details for a PyPI package.
+    
+    Parameters:
+        package_name (str): The package name to retrieve.
+    
+    Returns:
+        dict or None: A package details record, or None if metadata cannot be
+        retrieved or the package is classified as low quality.
     """
     metadata = fetch_pypi_metadata(package_name)
     if not metadata:

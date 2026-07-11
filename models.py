@@ -32,15 +32,31 @@ class Package(db.Model):
 
     @property
     def smash_count(self):
+        """Count the votes marked as smashes.
+        
+        Returns:
+        	int: The number of smash votes.
+        """
         return sum(1 for v in self.votes if v.is_smash)
 
     @property
     def total_votes(self):
+        """Count the votes associated with the model instance.
+        
+        Returns:
+        	int: The number of associated votes.
+        """
         return len(self.votes)
 
     @property
     def smash_ratio(self):
         # Scale 0.0 - 10.0 rating
+        """
+        Calculate the package's Smash rating on a scale from 0.0 to 10.0.
+        
+        Returns:
+        	float: The rating based on the proportion of Smash votes, or 5.0 when no votes exist.
+        """
         total = self.total_votes
         if total == 0:
             return 5.0 # default rating when no votes exist

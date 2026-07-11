@@ -8,7 +8,10 @@ logger = logging.getLogger(__name__)
 
 def fetch_rss_updates():
     """
-    Fetches the PyPI RSS updates feed and updates/creates high-quality packages.
+    Synchronize package records with the latest PyPI RSS updates.
+    
+    Returns:
+        int: The number of packages updated or added, or 0 if processing fails.
     """
     rss_url = "https://pypi.org/rss/updates.xml"
     try:
