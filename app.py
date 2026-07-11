@@ -341,9 +341,14 @@ def logout():
     flash('Logged out successfully.', 'success')
     return redirect(url_for('index'))
 
-if __name__ == '__main__':
+# Initialize database, seed queue, and start background threads when not testing.
+# This ensures it runs during Gunicorn, Vercel, or production startup.
+import sys
+if "pytest" not in sys.modules and not os.environ.get('TESTING'):
     with app.app_context():
         db.create_all()
         seed_queue_if_empty()
     start_scheduler()
+
+if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
