@@ -8,12 +8,12 @@ logger = logging.getLogger(__name__)
 def clean_description(desc):
     """
     Normalize a package description by removing surrounding whitespace.
-
+    
     Parameters:
-	desc: The description text to normalize.
-
+    	desc: The description text to normalize.
+    
     Returns:
-	str: The stripped description, or an empty string when no description is provided.
+    	str: The stripped description, or an empty string when no description is provided.
     """
     if not desc:
         return ""
@@ -23,11 +23,11 @@ def clean_description(desc):
 def parse_github_repo(project_urls, home_page=None):
     """
     Extract a normalized GitHub repository owner and name from project URLs.
-
+    
     Parameters:
         project_urls (dict): Mapping whose values may contain GitHub repository URLs.
         home_page (str, optional): Additional URL to inspect.
-
+    
     Returns:
         tuple or None: A `(owner, repository)` pair, or `None` if no GitHub repository URL is found.
     """
@@ -53,22 +53,34 @@ def parse_github_repo(project_urls, home_page=None):
             return owner, repo
     return None
 
-def fetch_github_stars(owner, repo):
+def fetch_github_stars(owner, repo, existing_stars=None):
     """
     Retrieve the number of stars for a GitHub repository.
 
     Parameters:
-	owner (str): GitHub repository owner.
-	repo (str): GitHub repository name.
+    	owner (str): GitHub repository owner.
+    	repo (str): GitHub repository name.
+    	existing_stars (int, optional): Existing star count to return if we skip the fetch.
 
     Returns:
-	int: The repository's star count, or 0 if the request fails or the repository data does not include a star count.
+    	int: The repository's star count, or 0 if the request fails or the repository data does not include a star count.
     """
+    # If we already have a star count, return it to avoid rate limiting
+    if existing_stars is not None and existing_stars > 0:
+        return existing_stars
+
     url = f"https://api.github.com/repos/{owner}/{repo}"
     headers = {
         "Accept": "application/vnd.github.v3+json",
         "User-Agent": "SmashOrPass-App/1.0"
     }
+
+    # Use GitHub token if available to increase rate limit
+    import os
+    github_token = os.environ.get('GITHUB_TOKEN')
+    if github_token:
+        headers["Authorization"] = f"token {github_token}"
+
     try:
         r = httpx.get(url, headers=headers, timeout=5.0)
         if r.status_code == 200:
@@ -80,10 +92,10 @@ def fetch_github_stars(owner, repo):
 
 def fetch_pypi_downloads(package_name):
     """Fetch the number of downloads for a package during the previous month.
-
+    
     Parameters:
         package_name: The PyPI package name.
-
+    
     Returns:
         The package's previous-month download count, or 0 if the request fails or provides no count.
     """
@@ -102,10 +114,10 @@ def fetch_pypi_downloads(package_name):
 def fetch_pypi_metadata(package_name):
     """
     Retrieve metadata for a package from the PyPI JSON API.
-
+    
     Parameters:
         package_name (str): The PyPI package name.
-
+    
     Returns:
         dict: The package metadata, or None if the request fails or the package is unavailable.
     """
@@ -121,10 +133,10 @@ def fetch_pypi_metadata(package_name):
 def is_low_quality(info):
     """
     Assess whether package metadata appears likely to represent a low-quality or spam-like package.
-
+    
     Parameters:
         info (dict): Package metadata containing the name, description, summary, and version.
-
+    
     Returns:
         bool: `True` if the metadata is likely low quality, `False` otherwise.
     """
@@ -177,12 +189,13 @@ def is_low_quality(info):
 
     return False
 
-def process_and_get_package_details(package_name):
+def process_and_get_package_details(package_name, existing_stars=None):
     """
     Fetch, filter, and assemble selected details for a PyPI package.
 
     Parameters:
         package_name (str): The package name to retrieve.
+        existing_stars (int, optional): Existing star count to avoid refetching.
 
     Returns:
         dict or None: A package details record, or None if metadata cannot be
@@ -210,7 +223,7 @@ def process_and_get_package_details(package_name):
     if repo_info:
         owner, repo = repo_info
         github_url = f"https://github.com/{owner}/{repo}"
-        stars = fetch_github_stars(owner, repo)
+        stars = fetch_github_stars(owner, repo, existing_stars)
 
     # Download stats
     downloads = fetch_pypi_downloads(package_name)

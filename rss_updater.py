@@ -16,17 +16,20 @@ def fetch_rss_updates():
     rss_url = "https://pypi.org/rss/updates.xml"
     try:
         r = httpx.get(rss_url, timeout=10.0)
-        if r.status_code == 200:
-            parsed = xmltodict.parse(r.text)
-            rss = parsed.get("rss", {})
-            channel = rss.get("channel", {})
-            items = channel.get("item", [])
+        if r.status_code != 200:
+            logger.warning(f"RSS fetch returned status {r.status_code}")
+            return 0
 
-            if not isinstance(items, list):
-                items = [items]
+        parsed = xmltodict.parse(r.text)
+        rss = parsed.get("rss", {})
+        channel = rss.get("channel", {})
+        items = channel.get("item", [])
 
-            updated_count = 0
-            for item in items:
+        if not isinstance(items, list):
+            items = [items]
+
+        updated_count = 0
+        for item in items:
                 title = item.get("title", "")
                 # RSS titles are usually "package-name version" or "package-name (version)"
                 # Let's extract the package name (the first word)
@@ -38,8 +41,15 @@ def fetch_rss_updates():
                 # Check if package is already in Package table or rejected queue
                 pkg = Package.query.filter_by(name=package_name).first()
                 if pkg:
-                    # Update details
-                    details = process_and_get_package_details(package_name)
+                    # Only update if package is stale (older than 24 hours)
+                    import datetime
+                    staleness_threshold = datetime.timedelta(hours=24)
+                    if pkg.updated_at and (datetime.datetime.utcnow() - pkg.updated_at) < staleness_threshold:
+                        # Skip refresh for recently updated packages
+                        continue
+
+                    # Update details, passing existing stars to avoid re-fetching
+                    details = process_and_get_package_details(package_name, existing_stars=pkg.github_stars)
                     if details:
                         pkg.version = details["version"]
                         pkg.author = details["author"]
@@ -87,8 +97,9 @@ def fetch_rss_updates():
                             db.session.add(PypiQueue(name=package_name, status='rejected'))
                         db.session.commit()
 
-            logger.info(f"RSS Polling Complete: updated/added {updated_count} packages")
-            return updated_count
+        logger.info(f"RSS Polling Complete: updated/added {updated_count} packages")
+        return updated_count
     except Exception as e:
+        db.session.rollback()
         logger.error(f"Error checking RSS updates: {e}")
         return 0

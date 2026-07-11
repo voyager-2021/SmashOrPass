@@ -8,6 +8,7 @@
     <p class="text-slate-400 text-sm text-center mb-6">Log in to keep voting, save packages, and view your history!</p>
 
     <form action="{{ url_for('login') }}" method="POST" class="space-y-4">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <div>
             <label for="username" class="block text-sm font-semibold text-slate-300 mb-1.5">Username</label>
             <input type="text" id="username" name="username" required
