@@ -45,23 +45,23 @@ login_manager.init_app(app)
 @login_manager.user_loader
 def load_user(user_id):
     """Load a user by their numeric identifier.
-    
+
     Parameters:
-    	user_id: The user's identifier.
-    
+	user_id: The user's identifier.
+
     Returns:
-    	User: The matching user, or None if no user exists with that identifier.
+	User: The matching user, or None if no user exists with that identifier.
     """
     return User.query.get(int(user_id))
 
 @app.context_processor
 def inject_year():
     """Provide the current UTC year to template contexts.
-    
+
     Returns:
         dict: A mapping containing the current UTC year under ``datetime_year``.
     """
-    return {'datetime_year': datetime.datetime.utcnow().year}
+    return {'datetime_year': datetime.datetime.now(datetime.timezone.utc).year}
 
 # Helper to populate dynamic queue if empty
 def seed_queue_if_empty():
@@ -122,9 +122,9 @@ def get_next_voting_package():
     # If authenticated, avoid previously voted packages
     """
     Selects an eligible package for the next vote.
-    
+
     For authenticated users, packages they have already voted on are excluded. If no existing package is eligible, retrieves and persists a package from the pending queue.
-    
+
     Returns:
         Package: The selected package.
         None: If no package is available.
@@ -193,7 +193,7 @@ def get_next_voting_package():
 @app.route('/')
 def index():
     """Render the voting page with the next available package.
-    
+
     Returns:
         The rendered voting page.
     """
@@ -204,10 +204,10 @@ def index():
 def vote(package_id):
     """
     Record an authenticated user's vote for a package and redirect to the voting page.
-    
+
     Parameters:
         package_id (int): Identifier of the package being voted on.
-    
+
     Returns:
         Response: A redirect response to the index page.
     """
@@ -238,7 +238,7 @@ def leaderboard():
     # To do this in Python since smash_ratio is a @property:
     """
     Display the leaderboard of packages ranked by voting ratio, download count, and GitHub stars.
-    
+
     Returns:
         The rendered leaderboard page containing the top 100 packages and summary statistics.
     """
@@ -257,10 +257,10 @@ def leaderboard():
 def package_detail(package_name):
     # Lookup by name
     """Render the detail page for a package identified by name.
-    
+
     Parameters:
         package_name (str): The exact package name to look up.
-    
+
     Returns:
         Response: The rendered package detail page.
     """
@@ -277,7 +277,7 @@ def history():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     """Authenticate a user and display the login form.
-    
+
     Returns:
         Response: A redirect for authenticated users or successful logins; otherwise, the rendered login page.
     """
@@ -302,9 +302,9 @@ def login():
 def register():
     """
     Register a new user and authenticate the account.
-    
+
     Returns:
-    	Response: A redirect to the index after successful registration or an authenticated user attempts to register; otherwise, the registration form.
+	Response: A redirect to the index after successful registration or an authenticated user attempts to register; otherwise, the registration form.
     """
     if current_user.is_authenticated:
         return redirect(url_for('index'))
