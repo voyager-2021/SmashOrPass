@@ -3,7 +3,7 @@ import datetime
 import random
 import threading
 import time
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -27,6 +27,7 @@ from sqlalchemy.engine import Engine
 @event.listens_for(Engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):
     # Only execute on SQLite connections
+    """Configure SQLite connections with WAL journaling and normal synchronous operation."""
     if type(dbapi_connection).__name__ == 'Connection' or 'sqlite' in str(type(dbapi_connection)).lower():
         cursor = dbapi_connection.cursor()
         try:
@@ -43,14 +44,30 @@ login_manager.init_app(app)
 
 @login_manager.user_loader
 def load_user(user_id):
+    """Load a user by their numeric identifier.
+    
+    Parameters:
+    	user_id: The user's identifier.
+    
+    Returns:
+    	User: The matching user, or None if no user exists with that identifier.
+    """
     return User.query.get(int(user_id))
 
 @app.context_processor
 def inject_year():
-    return {'datetime_year': datetime.datetime.now(datetime.timezone.utc).year}
+    """Provide the current UTC year to template contexts.
+    
+    Returns:
+        dict: A mapping containing the current UTC year under ``datetime_year``.
+    """
+    return {'datetime_year': datetime.datetime.utcnow().year}
 
 # Helper to populate dynamic queue if empty
 def seed_queue_if_empty():
+    """
+    Populate an empty package queue with popular seeds and additional package names fetched from PyPI.
+    """
     if PypiQueue.query.count() == 0:
         # Seeding high-quality popular starting list first
         popular_seeds = [
@@ -88,6 +105,7 @@ def seed_queue_if_empty():
 
 # Scheduler for RSS Updates (Polls feed every 10 mins)
 def start_scheduler():
+    """Start a daemon thread that refreshes RSS data every 10 minutes."""
     def rss_loop():
         while True:
             time.sleep(600) # every 10 mins
@@ -102,12 +120,22 @@ def start_scheduler():
 # Core logic: Find next package for current user / guest session
 def get_next_voting_package():
     # If authenticated, avoid previously voted packages
+    """
+    Selects an eligible package for the next vote.
+    
+    For authenticated users, packages they have already voted on are excluded. If no existing package is eligible, retrieves and persists a package from the pending queue.
+    
+    Returns:
+        Package: The selected package.
+        None: If no package is available.
+    """
     voted_package_ids = []
     if current_user.is_authenticated:
         voted_package_ids = [v.package_id for v in current_user.votes]
     else:
-        # Avoid same package twice in a row if possible using simple session list
-        pass
+        # Avoid showing the same package(s) repeatedly to a guest by excluding
+        # recently seen package ids tracked in their session
+        voted_package_ids = session.get('guest_seen_ids', [])
 
     # Try to find an existing high-quality package that wasn't voted on
     query = Package.query
@@ -115,51 +143,74 @@ def get_next_voting_package():
         query = query.filter(Package.id.not_in(voted_package_ids))
 
     available_packages = query.all()
+    package = None
     if available_packages:
-        return random.choice(available_packages)
+        package = random.choice(available_packages)
+    else:
+        # If no already-loaded Packages are left to vote on, let's fetch a new one from the queue!
+        while True:
+            queue_item = PypiQueue.query.filter_by(status='pending').first()
+            if not queue_item:
+                # Entire queue is exhausted!
+                break
 
-    # If no already-loaded Packages are left to vote on, let's fetch a new one from the queue!
-    while True:
-        queue_item = PypiQueue.query.filter_by(status='pending').first()
-        if not queue_item:
-            # Entire queue is exhausted!
-            break
+            # Try fetching details and apply filters
+            details = process_and_get_package_details(queue_item.name)
+            if details:
+                queue_item.status = 'fetched'
+                new_pkg = Package(
+                    name=details["name"],
+                    author=details["author"],
+                    version=details["version"],
+                    description=details["description"],
+                    github_url=details["github_url"],
+                    pypi_url=details["pypi_url"],
+                    total_downloads=details["total_downloads"],
+                    github_stars=details["github_stars"],
+                    license=details["license"]
+                )
+                db.session.add(new_pkg)
+                db.session.commit()
 
-        # Try fetching details and apply filters
-        details = process_and_get_package_details(queue_item.name)
-        if details:
-            queue_item.status = 'fetched'
-            new_pkg = Package(
-                name=details["name"],
-                author=details["author"],
-                version=details["version"],
-                description=details["description"],
-                github_url=details["github_url"],
-                pypi_url=details["pypi_url"],
-                total_downloads=details["total_downloads"],
-                github_stars=details["github_stars"],
-                license=details["license"]
-            )
-            db.session.add(new_pkg)
-            db.session.commit()
+                # Check if user voted on this new package (should be false since it's brand new)
+                package = new_pkg
+                break
+            else:
+                # Low quality or error, mark rejected
+                queue_item.status = 'rejected'
+                db.session.commit()
 
-            # Check if user voted on this new package (should be false since it's brand new)
-            return new_pkg
-        else:
-            # Low quality or error, mark rejected
-            queue_item.status = 'rejected'
-            db.session.commit()
+    if package and not current_user.is_authenticated:
+        # Track this package as recently seen so guests don't get repeats,
+        # keeping the list bounded to avoid unbounded session growth
+        seen_ids = session.get('guest_seen_ids', [])
+        seen_ids.append(package.id)
+        session['guest_seen_ids'] = seen_ids[-20:]
 
-    return None
+    return package
 
 # Routes
 @app.route('/')
 def index():
+    """Render the voting page with the next available package.
+    
+    Returns:
+        The rendered voting page.
+    """
     package = get_next_voting_package()
     return render_template('vote.html', package=package)
 
 @app.route('/vote/<int:package_id>', methods=['POST'])
 def vote(package_id):
+    """
+    Record an authenticated user's vote for a package and redirect to the voting page.
+    
+    Parameters:
+        package_id (int): Identifier of the package being voted on.
+    
+    Returns:
+        Response: A redirect response to the index page.
+    """
     action = request.form.get('action')
     if action not in ['smash', 'pass']:
         flash('Invalid action.', 'error')
@@ -185,6 +236,12 @@ def vote(package_id):
 def leaderboard():
     # Sort packages by score (smash_ratio desc)
     # To do this in Python since smash_ratio is a @property:
+    """
+    Display the leaderboard of packages ranked by voting ratio, download count, and GitHub stars.
+    
+    Returns:
+        The rendered leaderboard page containing the top 100 packages and summary statistics.
+    """
     all_packages = Package.query.all()
     # Sort by ratio (descending), then total downloads (descending), then stars (descending)
     sorted_packages = sorted(all_packages, key=lambda p: (p.smash_ratio, p.total_downloads or 0, p.github_stars or 0), reverse=True)
@@ -199,17 +256,31 @@ def leaderboard():
 @app.route('/package/<package_name>')
 def package_detail(package_name):
     # Lookup by name
+    """Render the detail page for a package identified by name.
+    
+    Parameters:
+        package_name (str): The exact package name to look up.
+    
+    Returns:
+        Response: The rendered package detail page.
+    """
     package = Package.query.filter_by(name=package_name).first_or_404()
     return render_template('detail.html', package=package)
 
 @app.route('/history')
 @login_required
 def history():
+    """Display the authenticated user's vote history in reverse chronological order."""
     user_votes = Vote.query.filter_by(user_id=current_user.id).order_by(Vote.created_at.desc()).all()
     return render_template('history.html', votes=user_votes)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    """Authenticate a user and display the login form.
+    
+    Returns:
+        Response: A redirect for authenticated users or successful logins; otherwise, the rendered login page.
+    """
     if current_user.is_authenticated:
         return redirect(url_for('index'))
 
@@ -229,6 +300,12 @@ def login():
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
+    """
+    Register a new user and authenticate the account.
+    
+    Returns:
+    	Response: A redirect to the index after successful registration or an authenticated user attempts to register; otherwise, the registration form.
+    """
     if current_user.is_authenticated:
         return redirect(url_for('index'))
 
@@ -259,6 +336,7 @@ def register():
 @app.route('/logout')
 @login_required
 def logout():
+    """Log out the current user and redirect to the home page."""
     logout_user()
     flash('Logged out successfully.', 'success')
     return redirect(url_for('index'))
