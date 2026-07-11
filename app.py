@@ -12,7 +12,12 @@ from models import db, User, Package, Vote, PypiQueue
 from pypi_utils import process_and_get_package_details, fetch_simple_api_names
 from rss_updater import fetch_rss_updates
 
-app = Flask(__name__)
+# Configure a writable instance path in read-only environments (like Vercel serverless)
+if os.environ.get('VERCEL') == '1' or os.environ.get('AWS_LAMBDA_FUNCTION_NAME'):
+    app = Flask(__name__, instance_path='/tmp')
+else:
+    app = Flask(__name__)
+
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'smash_or_pass_secret_dev_key')
 # Use a connection timeout of 30 seconds for SQLite to avoid locking issues
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///smashorpass.db?timeout=30')

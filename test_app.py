@@ -125,3 +125,23 @@ def test_leaderboard(client):
     assert r.status_code == 200
     assert b"pkg1" in r.data
     assert b"pkg2" in r.data
+
+
+def test_vercel_instance_path(monkeypatch):
+    import sys
+    import importlib
+
+    # Set the VERCEL environment variable to simulate Vercel deployment
+    monkeypatch.setenv('VERCEL', '1')
+
+    # Reload the app module so the conditional statement runs with VERCEL='1'
+    if 'app' in sys.modules:
+        importlib.reload(sys.modules['app'])
+
+    from app import app as vercel_app
+    assert vercel_app.instance_path == '/tmp'
+
+    # Clean up and restore app module for subsequent tests
+    monkeypatch.delenv('VERCEL', raising=False)
+    if 'app' in sys.modules:
+        importlib.reload(sys.modules['app'])
