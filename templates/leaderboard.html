@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Leaderboard - SmashOrPass{% endblock %}
+
+{% block content %}
+<div class="w-full max-w-4xl mt-4">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+        <div>
+            <h1 class="text-3xl font-black bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 bg-clip-text text-transparent">PyPI Leaderboard</h1>
+            <p class="text-slate-400 text-sm">Most popular and highest rated packages voted by the community.</p>
+        </div>
+
+        <!-- Quick stats -->
+        <div class="flex gap-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 flex flex-col">
+                <span class="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Total Packages</span>
+                <span class="text-lg font-black text-white">{{ stats.total_packages }}</span>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 flex flex-col">
+                <span class="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Total Votes</span>
+                <span class="text-lg font-black text-white">{{ stats.total_votes }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaderboard Table -->
+    {% if packages %}
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-950 text-slate-400 text-xs uppercase tracking-wider border-b border-slate-800">
+                            <th class="py-4 px-6 text-center w-16">Rank</th>
+                            <th class="py-4 px-6">Package</th>
+                            <th class="py-4 px-6 text-center w-28">Rating</th>
+                            <th class="py-4 px-6 text-center">Smash / Pass</th>
+                            <th class="py-4 px-6 text-right">GitHub Stars</th>
+                            <th class="py-4 px-6 text-right">Downloads</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-800/50">
+                        {% for pkg in packages %}
+                            <tr class="hover:bg-slate-800/30 transition">
+                                <td class="py-4 px-6 text-center font-mono font-bold">
+                                    {% if loop.index == 1 %}
+                                        <span class="text-yellow-400 text-xl"><i class="fa-solid fa-crown animate-bounce"></i></span>
+                                    {% elif loop.index == 2 %}
+                                        <span class="text-slate-300 text-lg">2</span>
+                                    {% elif loop.index == 3 %}
+                                        <span class="text-amber-600 text-lg">3</span>
+                                    {% else %}
+                                        <span class="text-slate-500">{{ loop.index }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="py-4 px-6">
+                                    <div class="flex flex-col">
+                                        <a href="{{ url_for('package_detail', package_name=pkg.name) }}" class="text-base font-bold text-white hover:text-pink-500 hover:underline transition break-all">
+                                            {{ pkg.name }}
+                                        </a>
+                                        <span class="text-xs text-slate-400 line-clamp-1 mt-0.5">{{ pkg.description or 'No description available' }}</span>
+                                    </div>
+                                </td>
+                                <td class="py-4 px-6 text-center">
+                                    <span class="{% if pkg.smash_ratio >= 7.0 %}bg-emerald-950/80 text-emerald-300 border-emerald-800{% elif pkg.smash_ratio >= 4.0 %}bg-amber-950/80 text-amber-300 border-amber-800{% else %}bg-rose-950/80 text-rose-300 border-rose-800{% endif %} font-mono font-extrabold text-sm px-2.5 py-1 rounded-lg border">
+                                        {{ pkg.smash_ratio }}
+                                    </span>
+                                </td>
+                                <td class="py-4 px-6 text-center">
+                                    <div class="flex items-center justify-center gap-1.5 text-xs text-slate-400 font-medium">
+                                        <span class="text-emerald-400 font-semibold">{{ pkg.smash_count }} S</span>
+                                        <span>/</span>
+                                        <span class="text-rose-400 font-semibold">{{ pkg.total_votes - pkg.smash_count }} P</span>
+                                    </div>
+                                </td>
+                                <td class="py-4 px-6 text-right font-mono text-sm text-yellow-400 font-semibold">
+                                    <i class="fa-solid fa-star text-xs mr-0.5"></i> {{ "{:,}".format(pkg.github_stars) if pkg.github_stars else '0' }}
+                                </td>
+                                <td class="py-4 px-6 text-right font-mono text-sm text-pink-400 font-semibold">
+                                    <i class="fa-solid fa-download text-xs mr-0.5"></i> {{ "{:,}".format(pkg.total_downloads) if pkg.total_downloads else '0' }}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% else %}
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center">
+            <p class="text-slate-400 mb-4">No packages voted on yet. Start swiping to populate the leaderboard!</p>
+            <a href="{{ url_for('index') }}" class="bg-gradient-to-r from-pink-500 to-red-500 text-white font-bold py-2 px-6 rounded-xl text-sm transition">
+                Start Voting
+            </a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

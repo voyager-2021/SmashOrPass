@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}History - SmashOrPass{% endblock %}
+
+{% block content %}
+<div class="w-full max-w-4xl mt-4">
+    <div class="mb-8">
+        <h1 class="text-3xl font-black bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 bg-clip-text text-transparent">Your Voting History</h1>
+        <p class="text-slate-400 text-sm">Review packages you have smashed or passed. Click on any package to see detailed statistics.</p>
+    </div>
+
+    {% if votes %}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {% for vote in votes %}
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between hover:border-slate-700 transition">
+                    <div>
+                        <div class="flex items-start justify-between gap-2 mb-2">
+                            <a href="{{ url_for('package_detail', package_name=vote.package.name) }}" class="text-xl font-bold text-white hover:text-pink-500 transition break-all">
+                                {{ vote.package.name }}
+                            </a>
+
+                            <!-- Vote Badge -->
+                            {% if vote.is_smash %}
+                                <span class="bg-emerald-950 text-emerald-400 border border-emerald-800 text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
+                                    <i class="fa-solid fa-heart"></i> Smashed
+                                </span>
+                            {% else %}
+                                <span class="bg-rose-950 text-rose-400 border border-rose-800 text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
+                                    <i class="fa-solid fa-xmark"></i> Passed
+                                </span>
+                            {% endif %}
+                        </div>
+
+                        <p class="text-slate-400 text-xs line-clamp-2 leading-relaxed mb-4">
+                            {{ vote.package.description or 'No description available' }}
+                        </p>
+                    </div>
+
+                    <!-- Meta stats -->
+                    <div class="flex items-center justify-between border-t border-slate-800/60 pt-3 text-xs text-slate-500 font-mono">
+                        <span class="flex items-center gap-1"><i class="fa-solid fa-clock"></i> {{ vote.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                        <div class="flex items-center gap-3">
+                            <span class="text-yellow-500"><i class="fa-solid fa-star"></i> {{ vote.package.github_stars or '0' }}</span>
+                            <span class="text-pink-400"><i class="fa-solid fa-download"></i> {{ vote.package.total_downloads or '0' }}</span>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center">
+            <p class="text-slate-400 mb-4">You haven't voted on any packages yet. Start swiping!</p>
+            <a href="{{ url_for('index') }}" class="bg-gradient-to-r from-pink-500 to-red-500 text-white font-bold py-2 px-6 rounded-xl text-sm transition">
+                Start Voting
+            </a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
