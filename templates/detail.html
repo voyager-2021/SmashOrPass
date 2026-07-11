@@ -49,10 +49,10 @@
             </div>
             <div class="flex justify-between items-center text-xs font-mono mt-2">
                 <span class="text-emerald-400 font-bold flex items-center gap-1">
-                    <i class="fa-solid fa-heart"></i> {{ package.smash_count }} Smashed ({{ ((package.smash_count / package.total_votes) * 100)|round(1) if package.total_votes > 0 else '50.0' }}%)
+                    <i class="fa-solid fa-heart"></i> {{ package.smash_count }} Smashed ({{ ((package.smash_count / package.total_votes) * 100)|round(1) if package.total_votes > 0 else '0.0' }}%)
                 </span>
                 <span class="text-rose-400 font-bold flex items-center gap-1">
-                    <i class="fa-solid fa-xmark"></i> {{ package.total_votes - package.smash_count }} Passed ({{ (((package.total_votes - package.smash_count) / package.total_votes) * 100)|round(1) if package.total_votes > 0 else '50.0' }}%)
+                    <i class="fa-solid fa-xmark"></i> {{ package.total_votes - package.smash_count }} Passed ({{ (((package.total_votes - package.smash_count) / package.total_votes) * 100)|round(1) if package.total_votes > 0 else '0.0' }}%)
                 </span>
             </div>
         </div>
@@ -111,7 +111,7 @@
                 </h3>
 
                 <div class="text-slate-300 text-sm leading-relaxed prose prose-invert max-w-none whitespace-pre-wrap font-sans break-words">
-                    {{ package.description }}
+                    {{ package.description or 'No description available' }}
                 </div>
             </div>
         </div>
