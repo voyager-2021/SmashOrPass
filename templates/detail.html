@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}{{ package.name }} - SmashOrPass{% endblock %}
+
+{% block content %}
+<div class="w-full max-w-4xl mt-4">
+    <!-- Breadcrumbs/Back -->
+    <a href="{{ url_for('leaderboard') }}" class="text-slate-400 hover:text-white text-sm font-semibold flex items-center gap-1.5 mb-6 transition">
+        <i class="fa-solid fa-chevron-left"></i> Back to Leaderboard
+    </a>
+
+    <!-- Top Card Header -->
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl p-8 mb-6 relative overflow-hidden">
+        <div class="absolute top-0 right-0 h-48 w-48 bg-gradient-to-br from-pink-500/10 to-red-500/10 rounded-bl-full pointer-events-none"></div>
+
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative z-10">
+            <div>
+                <span class="text-xs font-mono font-bold uppercase bg-slate-800 text-slate-400 px-3 py-1 rounded-full border border-slate-700/60 inline-block mb-3">
+                    Version {{ package.version }}
+                </span>
+                <h1 class="text-4xl md:text-5xl font-black text-white break-all">{{ package.name }}</h1>
+                <p class="text-slate-400 text-sm mt-1.5 flex items-center gap-1">
+                    By <span class="font-semibold text-slate-300">{{ package.author }}</span>
+                </p>
+            </div>
+
+            <!-- Big Rating -->
+            <div class="flex items-center gap-4 bg-slate-950/80 backdrop-blur border border-slate-800 rounded-2xl p-4 md:p-5">
+                <div class="text-center">
+                    <span class="text-xs font-bold text-slate-500 uppercase tracking-widest block mb-1">Community Rating</span>
+                    <div class="flex items-baseline justify-center gap-1">
+                        <span class="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-red-500 font-mono">{{ package.smash_ratio }}</span>
+                        <span class="text-sm font-bold text-slate-400">/10.0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Progress/Stats ratio visualization -->
+        <div class="mt-8 border-t border-slate-800/80 pt-6">
+            <h4 class="text-xs uppercase font-bold text-slate-500 tracking-wider mb-3">Voting Breakdown</h4>
+            <div class="w-full h-4 bg-slate-950 rounded-full overflow-hidden flex">
+                {% if package.total_votes > 0 %}
+                    <div class="bg-gradient-to-r from-emerald-500 to-teal-500 h-full" style="width: {{ (package.smash_count / package.total_votes) * 100 }}%"></div>
+                    <div class="bg-gradient-to-r from-rose-500 to-red-500 h-full" style="width: {{ ((package.total_votes - package.smash_count) / package.total_votes) * 100 }}%"></div>
+                {% else %}
+                    <div class="bg-slate-800 w-full h-full"></div>
+                {% endif %}
+            </div>
+            <div class="flex justify-between items-center text-xs font-mono mt-2">
+                <span class="text-emerald-400 font-bold flex items-center gap-1">
+                    <i class="fa-solid fa-heart"></i> {{ package.smash_count }} Smashed ({{ ((package.smash_count / package.total_votes) * 100)|round(1) if package.total_votes > 0 else '50.0' }}%)
+                </span>
+                <span class="text-rose-400 font-bold flex items-center gap-1">
+                    <i class="fa-solid fa-xmark"></i> {{ package.total_votes - package.smash_count }} Passed ({{ (((package.total_votes - package.smash_count) / package.total_votes) * 100)|round(1) if package.total_votes > 0 else '50.0' }}%)
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Details Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Sidebar Metadata -->
+        <div class="space-y-6">
+            <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6">
+                <h3 class="text-lg font-black mb-4 flex items-center gap-2 text-white">
+                    <i class="fa-solid fa-chart-bar text-pink-500"></i> Stats & Links
+                </h3>
+
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                        <span class="text-xs text-slate-500 font-semibold uppercase tracking-wider">License</span>
+                        <span class="text-sm text-slate-300 font-medium break-words max-w-[60%] text-right">{{ package.license }}</span>
+                    </div>
+                    <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                        <span class="text-xs text-slate-500 font-semibold uppercase tracking-wider">Total Downloads</span>
+                        <span class="text-sm font-mono font-bold text-pink-400 flex items-center gap-1">
+                            <i class="fa-solid fa-download text-xs"></i> {{ "{:,}".format(package.total_downloads) if package.total_downloads else '0' }}
+                        </span>
+                    </div>
+                    <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                        <span class="text-xs text-slate-500 font-semibold uppercase tracking-wider">GitHub Stars</span>
+                        <span class="text-sm font-mono font-bold text-yellow-400 flex items-center gap-1">
+                            <i class="fa-solid fa-star text-xs"></i> {{ "{:,}".format(package.github_stars) if package.github_stars else '0' }}
+                        </span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs text-slate-500 font-semibold uppercase tracking-wider">Votes Recorded</span>
+                        <span class="text-sm font-mono font-bold text-slate-300">{{ package.total_votes }}</span>
+                    </div>
+                </div>
+
+                <div class="mt-6 pt-6 border-t border-slate-800 flex flex-col gap-3">
+                    <a href="{{ package.pypi_url }}" target="_blank" class="w-full bg-[#1f425f] hover:bg-[#265377] text-white font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition text-sm">
+                        <i class="fa-brands fa-python"></i> View on PyPI
+                    </a>
+                    {% if package.github_url %}
+                        <a href="{{ package.github_url }}" target="_blank" class="w-full bg-slate-950 hover:bg-black border border-slate-800 text-white font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition text-sm">
+                            <i class="fa-brands fa-github"></i> GitHub Repository
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Description / Documentation -->
+        <div class="md:col-span-2 space-y-6">
+            <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8">
+                <h3 class="text-lg font-black mb-4 flex items-center gap-2 text-white">
+                    <i class="fa-solid fa-file-alt text-pink-500"></i> Package Description
+                </h3>
+
+                <div class="text-slate-300 text-sm leading-relaxed prose prose-invert max-w-none whitespace-pre-wrap font-sans break-words">
+                    {{ package.description }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

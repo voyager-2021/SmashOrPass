@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}Vote PyPI - SmashOrPass{% endblock %}
+
+{% block content %}
+<div class="w-full max-w-xl flex flex-col items-center mt-4">
+    {% if not current_user.is_authenticated %}
+        <!-- Guest Banner -->
+        <div class="w-full bg-gradient-to-r from-pink-900/40 to-red-900/40 border border-pink-900 rounded-2xl p-6 text-center mb-8">
+            <h3 class="text-lg font-bold text-pink-300 flex items-center justify-center gap-2 mb-1">
+                <i class="fa-solid fa-sparkles text-yellow-400"></i> Log In to Save Your Votes
+            </h3>
+            <p class="text-sm text-slate-300 mb-4">You are currently browsing as a guest. Your votes aren't saved to your personal history!</p>
+            <div class="flex justify-center gap-3">
+                <a href="{{ url_for('login') }}" class="text-xs bg-slate-900 hover:bg-slate-800 text-white font-semibold py-2 px-4 rounded-lg border border-slate-700 transition">Login</a>
+                <a href="{{ url_for('register') }}" class="text-xs bg-gradient-to-r from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600 text-white font-semibold py-2 px-4 rounded-lg transition">Sign Up</a>
+            </div>
+        </div>
+    {% endif %}
+
+    {% if package %}
+        <!-- Tinder Card Container -->
+        <div class="relative w-full aspect-[4/5] sm:aspect-[3/4] bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col group transition duration-300 hover:border-slate-700">
+            <!-- Top stats bar -->
+            <div class="absolute top-4 left-4 right-4 flex items-center justify-between z-10">
+                <span class="bg-slate-950/80 backdrop-blur text-xs text-slate-400 px-3 py-1.5 rounded-full border border-slate-800 flex items-center gap-1.5 font-mono">
+                    <i class="fa-solid fa-code-commit text-pink-500"></i> v{{ package.version }}
+                </span>
+                <span class="{% if package.smash_ratio >= 7.0 %}bg-emerald-950/80 text-emerald-300 border-emerald-800{% elif package.smash_ratio >= 4.0 %}bg-amber-950/80 text-amber-300 border-amber-800{% else %}bg-rose-950/80 text-rose-300 border-rose-800{% endif %} backdrop-blur text-sm font-bold px-3 py-1.5 rounded-full border flex items-center gap-1 font-mono">
+                    <i class="fa-solid fa-star"></i> {{ package.smash_ratio }} <span class="text-xs opacity-60">/10.0</span>
+                </span>
+            </div>
+
+            <!-- Main Body -->
+            <div class="flex-grow flex flex-col justify-end p-8 bg-gradient-to-t from-slate-950 via-slate-950/70 to-transparent relative">
+                <!-- Package Details on Hover/Scroll -->
+                <div class="space-y-4 max-h-[85%] overflow-y-auto pr-1">
+                    <div class="space-y-1">
+                        <h2 class="text-4xl font-extrabold tracking-tight text-white flex items-center gap-2 break-all">
+                            {{ package.name }}
+                        </h2>
+                        <p class="text-slate-400 text-sm flex items-center gap-1.5">
+                            By <span class="font-semibold text-slate-300">{{ package.author }}</span>
+                        </p>
+                    </div>
+
+                    <!-- Package Statistics -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-slate-900/60 border border-slate-800 p-3 rounded-xl flex flex-col">
+                            <span class="text-xs text-slate-500 uppercase font-bold tracking-wider mb-0.5">Monthly DLs</span>
+                            <span class="text-base font-bold text-pink-400 flex items-center gap-1.5">
+                                <i class="fa-solid fa-download"></i> {{ "{:,}".format(package.total_downloads) if package.total_downloads else '0' }}
+                            </span>
+                        </div>
+                        <div class="bg-slate-900/60 border border-slate-800 p-3 rounded-xl flex flex-col">
+                            <span class="text-xs text-slate-500 uppercase font-bold tracking-wider mb-0.5">GitHub Stars</span>
+                            <span class="text-base font-bold text-yellow-400 flex items-center gap-1.5">
+                                <i class="fa-solid fa-star"></i> {{ "{:,}".format(package.github_stars) if package.github_stars else '0' }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="text-sm text-slate-300 leading-relaxed font-normal py-1">
+                        {{ package.description|truncate(250) }}
+                    </div>
+
+                    <!-- Project Links -->
+                    <div class="flex items-center gap-3 pt-2">
+                        <a href="{{ url_for('package_detail', package_name=package.name) }}" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-2 px-3.5 rounded-lg flex items-center gap-1.5 transition">
+                            <i class="fa-solid fa-circle-info"></i> Full Stats & Info
+                        </a>
+                        <a href="{{ package.pypi_url }}" target="_blank" class="text-xs bg-[#1f425f] hover:bg-[#265377] text-white font-bold py-2 px-3.5 rounded-lg flex items-center gap-1.5 transition">
+                            <i class="fa-brands fa-python"></i> PyPI Project
+                        </a>
+                        {% if package.github_url %}
+                            <a href="{{ package.github_url }}" target="_blank" class="text-xs bg-slate-950 hover:bg-black border border-slate-800 text-white font-bold py-2 px-3.5 rounded-lg flex items-center gap-1.5 transition">
+                                <i class="fa-brands fa-github"></i> GitHub
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Swipe Action Buttons -->
+            <div class="bg-slate-950 p-6 flex justify-around border-t border-slate-900 items-center">
+                <!-- Pass Button -->
+                <form action="{{ url_for('vote', package_id=package.id) }}" method="POST">
+                    <input type="hidden" name="action" value="pass">
+                    <button type="submit"
+                        class="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 hover:border-rose-500/50 text-rose-500 hover:text-white hover:bg-rose-500 hover:shadow-lg hover:shadow-rose-500/20 flex items-center justify-center text-2xl transition duration-300 transform hover:scale-110 active:scale-95"
+                        title="Pass (No)">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </form>
+
+                <!-- Smash Button -->
+                <form action="{{ url_for('vote', package_id=package.id) }}" method="POST">
+                    <input type="hidden" name="action" value="smash">
+                    <button type="submit"
+                        class="w-20 h-20 rounded-full bg-gradient-to-r from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600 hover:shadow-lg hover:shadow-pink-500/30 text-white flex items-center justify-center text-3xl transition duration-300 transform hover:scale-110 active:scale-95"
+                        title="Smash (Yes!)">
+                        <i class="fa-solid fa-heart"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+    {% else %}
+        <!-- Empty State / No Packages Left -->
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl p-12 text-center max-w-md w-full shadow-2xl">
+            <div class="w-20 h-20 bg-slate-800/80 text-pink-500 rounded-full flex items-center justify-center text-4xl mx-auto mb-6">
+                <i class="fa-solid fa-compass"></i>
+            </div>
+            <h2 class="text-2xl font-black mb-3">All Caught Up!</h2>
+            <p class="text-slate-400 text-sm leading-relaxed mb-6">
+                We're currently processing and searching PyPI for more packages. Check back in a bit or explore the leaderboard!
+            </p>
+            <div class="flex justify-center gap-4">
+                <a href="{{ url_for('leaderboard') }}" class="bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 px-6 rounded-xl text-sm transition">
+                    Leaderboard
+                </a>
+                <a href="{{ url_for('index') }}" class="bg-gradient-to-r from-pink-500 to-red-500 hover:from-pink-600 hover:to-red-600 text-white font-bold py-2.5 px-6 rounded-xl text-sm transition">
+                    Refresh
+                </a>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
