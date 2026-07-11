@@ -346,14 +346,27 @@ def logout():
     flash('Logged out successfully.', 'success')
     return redirect(url_for('index'))
 
+# On Vercel / serverless, initialize the database on the first request to avoid import-time database connection failures.
+if os.environ.get('VERCEL') == '1' or os.environ.get('AWS_LAMBDA_FUNCTION_NAME'):
+    _db_initialized = False
+
+    @app.before_request
+    def initialize_on_first_request():
+        global _db_initialized
+        if not _db_initialized:
+            db.create_all()
+            seed_queue_if_empty()
+            _db_initialized = True
+
 # Initialize database, seed queue, and start background threads when not testing.
-# This ensures it runs during Gunicorn, Vercel, or production startup.
+# This ensures it runs during Gunicorn or production startup, but is bypassed on Vercel/serverless or during testing.
 import sys
 if "pytest" not in sys.modules and not os.environ.get('TESTING'):
-    with app.app_context():
-        db.create_all()
-        seed_queue_if_empty()
-    start_scheduler()
+    if os.environ.get('VERCEL') != '1' and not os.environ.get('AWS_LAMBDA_FUNCTION_NAME'):
+        with app.app_context():
+            db.create_all()
+            seed_queue_if_empty()
+        start_scheduler()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
