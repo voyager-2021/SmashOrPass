@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 def fetch_rss_updates():
     """
     Synchronize package records with the latest PyPI RSS updates.
-    
+
     Returns:
         int: The number of packages updated or added, or 0 if processing fails.
     """

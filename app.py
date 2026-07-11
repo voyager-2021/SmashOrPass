@@ -3,7 +3,7 @@ import datetime
 import random
 import threading
 import time
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -45,23 +45,23 @@ login_manager.init_app(app)
 @login_manager.user_loader
 def load_user(user_id):
     """Load a user by their numeric identifier.
-    
+
     Parameters:
-    	user_id: The user's identifier.
-    
+	user_id: The user's identifier.
+
     Returns:
-    	User: The matching user, or None if no user exists with that identifier.
+	User: The matching user, or None if no user exists with that identifier.
     """
     return User.query.get(int(user_id))
 
 @app.context_processor
 def inject_year():
     """Provide the current UTC year to template contexts.
-    
+
     Returns:
         dict: A mapping containing the current UTC year under ``datetime_year``.
     """
-    return {'datetime_year': datetime.datetime.utcnow().year}
+    return {'datetime_year': datetime.datetime.now(datetime.timezone.utc).year}
 
 # Helper to populate dynamic queue if empty
 def seed_queue_if_empty():
@@ -122,9 +122,9 @@ def get_next_voting_package():
     # If authenticated, avoid previously voted packages
     """
     Selects an eligible package for the next vote.
-    
+
     For authenticated users, packages they have already voted on are excluded. If no existing package is eligible, retrieves and persists a package from the pending queue.
-    
+
     Returns:
         Package: The selected package.
         None: If no package is available.
@@ -133,8 +133,9 @@ def get_next_voting_package():
     if current_user.is_authenticated:
         voted_package_ids = [v.package_id for v in current_user.votes]
     else:
-        # Avoid same package twice in a row if possible using simple session list
-        pass
+        # Avoid showing the same package(s) repeatedly to a guest by excluding
+        # recently seen package ids tracked in their session
+        voted_package_ids = session.get('guest_seen_ids', [])
 
     # Try to find an existing high-quality package that wasn't voted on
     query = Package.query
@@ -142,48 +143,57 @@ def get_next_voting_package():
         query = query.filter(Package.id.not_in(voted_package_ids))
 
     available_packages = query.all()
+    package = None
     if available_packages:
-        return random.choice(available_packages)
+        package = random.choice(available_packages)
+    else:
+        # If no already-loaded Packages are left to vote on, let's fetch a new one from the queue!
+        while True:
+            queue_item = PypiQueue.query.filter_by(status='pending').first()
+            if not queue_item:
+                # Entire queue is exhausted!
+                break
 
-    # If no already-loaded Packages are left to vote on, let's fetch a new one from the queue!
-    while True:
-        queue_item = PypiQueue.query.filter_by(status='pending').first()
-        if not queue_item:
-            # Entire queue is exhausted!
-            break
+            # Try fetching details and apply filters
+            details = process_and_get_package_details(queue_item.name)
+            if details:
+                queue_item.status = 'fetched'
+                new_pkg = Package(
+                    name=details["name"],
+                    author=details["author"],
+                    version=details["version"],
+                    description=details["description"],
+                    github_url=details["github_url"],
+                    pypi_url=details["pypi_url"],
+                    total_downloads=details["total_downloads"],
+                    github_stars=details["github_stars"],
+                    license=details["license"]
+                )
+                db.session.add(new_pkg)
+                db.session.commit()
 
-        # Try fetching details and apply filters
-        details = process_and_get_package_details(queue_item.name)
-        if details:
-            queue_item.status = 'fetched'
-            new_pkg = Package(
-                name=details["name"],
-                author=details["author"],
-                version=details["version"],
-                description=details["description"],
-                github_url=details["github_url"],
-                pypi_url=details["pypi_url"],
-                total_downloads=details["total_downloads"],
-                github_stars=details["github_stars"],
-                license=details["license"]
-            )
-            db.session.add(new_pkg)
-            db.session.commit()
+                # Check if user voted on this new package (should be false since it's brand new)
+                package = new_pkg
+                break
+            else:
+                # Low quality or error, mark rejected
+                queue_item.status = 'rejected'
+                db.session.commit()
 
-            # Check if user voted on this new package (should be false since it's brand new)
-            return new_pkg
-        else:
-            # Low quality or error, mark rejected
-            queue_item.status = 'rejected'
-            db.session.commit()
+    if package and not current_user.is_authenticated:
+        # Track this package as recently seen so guests don't get repeats,
+        # keeping the list bounded to avoid unbounded session growth
+        seen_ids = session.get('guest_seen_ids', [])
+        seen_ids.append(package.id)
+        session['guest_seen_ids'] = seen_ids[-20:]
 
-    return None
+    return package
 
 # Routes
 @app.route('/')
 def index():
     """Render the voting page with the next available package.
-    
+
     Returns:
         The rendered voting page.
     """
@@ -194,10 +204,10 @@ def index():
 def vote(package_id):
     """
     Record an authenticated user's vote for a package and redirect to the voting page.
-    
+
     Parameters:
         package_id (int): Identifier of the package being voted on.
-    
+
     Returns:
         Response: A redirect response to the index page.
     """
@@ -228,7 +238,7 @@ def leaderboard():
     # To do this in Python since smash_ratio is a @property:
     """
     Display the leaderboard of packages ranked by voting ratio, download count, and GitHub stars.
-    
+
     Returns:
         The rendered leaderboard page containing the top 100 packages and summary statistics.
     """
@@ -247,10 +257,10 @@ def leaderboard():
 def package_detail(package_name):
     # Lookup by name
     """Render the detail page for a package identified by name.
-    
+
     Parameters:
         package_name (str): The exact package name to look up.
-    
+
     Returns:
         Response: The rendered package detail page.
     """
@@ -267,7 +277,7 @@ def history():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     """Authenticate a user and display the login form.
-    
+
     Returns:
         Response: A redirect for authenticated users or successful logins; otherwise, the rendered login page.
     """
@@ -292,9 +302,9 @@ def login():
 def register():
     """
     Register a new user and authenticate the account.
-    
+
     Returns:
-    	Response: A redirect to the index after successful registration or an authenticated user attempts to register; otherwise, the registration form.
+	Response: A redirect to the index after successful registration or an authenticated user attempts to register; otherwise, the registration form.
     """
     if current_user.is_authenticated:
         return redirect(url_for('index'))

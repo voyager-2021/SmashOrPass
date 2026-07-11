@@ -9,7 +9,7 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     votes = db.relationship('Vote', backref='user', lazy=True)
 
@@ -25,26 +25,26 @@ class Package(db.Model):
     total_downloads = db.Column(db.BigInteger, default=0)
     github_stars = db.Column(db.Integer, default=0)
     license = db.Column(db.String(200))
-    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc), onupdate=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     votes = db.relationship('Vote', backref='package', lazy=True)
 
     @property
     def smash_count(self):
         """Count the votes marked as smashes.
-        
+
         Returns:
-        	int: The number of smash votes.
+		int: The number of smash votes.
         """
         return sum(1 for v in self.votes if v.is_smash)
 
     @property
     def total_votes(self):
         """Count the votes associated with the model instance.
-        
+
         Returns:
-        	int: The number of associated votes.
+		int: The number of associated votes.
         """
         return len(self.votes)
 
@@ -53,9 +53,9 @@ class Package(db.Model):
         # Scale 0.0 - 10.0 rating
         """
         Calculate the package's Smash rating on a scale from 0.0 to 10.0.
-        
+
         Returns:
-        	float: The rating based on the proportion of Smash votes, or 5.0 when no votes exist.
+		float: The rating based on the proportion of Smash votes, or 5.0 when no votes exist.
         """
         total = self.total_votes
         if total == 0:
@@ -68,7 +68,7 @@ class Vote(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     package_id = db.Column(db.Integer, db.ForeignKey('packages.id'), nullable=False)
     is_smash = db.Column(db.Boolean, nullable=False) # True = Smash, False = Pass
-    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
     __table_args__ = (db.UniqueConstraint('user_id', 'package_id', name='_user_package_uc'),)
 
@@ -77,4 +77,4 @@ class PypiQueue(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), unique=True, nullable=False)
     status = db.Column(db.String(50), default='pending') # pending, fetched, rejected, error
-    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
