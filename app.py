@@ -47,7 +47,7 @@ def load_user(user_id):
 
 @app.context_processor
 def inject_year():
-    return {'datetime_year': datetime.datetime.utcnow().year}
+    return {'datetime_year': datetime.datetime.now(datetime.timezone.utc).year}
 
 # Helper to populate dynamic queue if empty
 def seed_queue_if_empty():
