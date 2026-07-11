@@ -13,7 +13,14 @@ from models import db, User, Package, Vote, PypiQueue
 from pypi_utils import process_and_get_package_details, fetch_simple_api_names
 from rss_updater import fetch_rss_updates
 
-app = Flask(__name__)
+# Configure a writable instance path in read-only environments (like Vercel serverless)
+instance_path = "/tmp" if (
+    os.environ.get("VERCEL") == "1"
+    or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+) else None
+
+app = Flask(__name__, instance_path=instance_path)
+
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'smash_or_pass_secret_dev_key')
 # Use a connection timeout of 30 seconds for SQLite to avoid locking issues
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///smashorpass.db?timeout=30')
@@ -372,14 +379,27 @@ def logout():
     flash('Logged out successfully.', 'success')
     return redirect(url_for('index'))
 
-def initialize_app():
-    """Initialize database, seed queue, and start background workers."""
-    db.create_all()
-    seed_queue_if_empty()
-    start_scheduler()
+# On Vercel / serverless, initialize the database on the first request to avoid import-time database connection failures.
+if os.environ.get('VERCEL') == '1' or os.environ.get('AWS_LAMBDA_FUNCTION_NAME'):
+    _db_initialized = False
+
+    @app.before_request
+    def initialize_on_first_request():
+        global _db_initialized
+        if not _db_initialized:
+            db.create_all()
+            seed_queue_if_empty()
+            _db_initialized = True
+
+# Initialize database, seed queue, and start background threads when not testing.
+# This ensures it runs during Gunicorn or production startup, but is bypassed on Vercel/serverless or during testing.
+import sys
+if "pytest" not in sys.modules and not os.environ.get('TESTING'):
+    if os.environ.get('VERCEL') != '1' and not os.environ.get('AWS_LAMBDA_FUNCTION_NAME'):
+        with app.app_context():
+            db.create_all()
+            seed_queue_if_empty()
+        start_scheduler()
 
 if __name__ == '__main__':
-    with app.app_context():
-        initialize_app()
-    debug_mode = os.environ.get('FLASK_DEBUG', '0') == '1'
-    app.run(host='0.0.0.0', port=5000, debug=debug_mode)
+    app.run(host='0.0.0.0', port=5000, debug=True)
